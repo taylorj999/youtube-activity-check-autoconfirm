@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.1
 // @description  Automatically trigger click events on Youtube's Activity Check Confirmation popups
-// @author       taylorj999
+// @author       You
 // @include      https://youtube.com/*
 // @include      https://*.youtube.com/*
 // @grant        none
@@ -42,15 +42,18 @@ function hasEnoughTimePassed() {
 // delayUntilClick should be set long enough for the popup dialog to be fully loaded
 const delayUntilClick = 250;
 
-function delayedTriggerClick(node) {
-    setTimeout(function() {
+function triggerClick(node) {
     try {
         if (debugYoutubeMode) console.log("Executing a click action - Node name is: " + node.nodeName);
         let evt = jQuery.Event( "click" );
         jQuery(node).trigger(evt);
     } catch (e) {
         console.log(e);
-    }},delayUntilClick);
+    }
+}
+
+function delayedTriggerClick(node) {
+    setTimeout(triggerClick(node),delayUntilClick);
 }
 
 // Convenience function for tag name checking. The tag names used within the Youtube HTML can vary wildly in terms of upper/lower case
@@ -129,6 +132,10 @@ function handleMutation(mutations,observer) {
                 }
             }
             // This matches a "warning - video is about to pause" dialog
+            // There is not a long enough window to react to this notification to allow a long delay of the triggered click
+            // or to reset the activity lockout; so for this one the click is triggered immediately and in case we did not fire
+            // it fast enough we do not reset the lockout timer so that the mutation handler can also fire for the main dialog
+            // becoming visible
             if (matchesTagName(mutations[j].target.tagName,"PAPER-TOAST") && containsClassName(mutations[j].target.className,"yt-notification-action-renderer")
                 && (mutations[j].attributeName === "aria-hidden")) {
                 if (innerTextMatches(mutations[j].target.innerText,["Still watching? Video will pause soon"])) {
@@ -144,8 +151,7 @@ function handleMutation(mutations,observer) {
                     for (let l=0;l<ytToastButtons.length;l++) {
                         if (innerTextMatches(ytToastButtons[l].innerText,buttonsToClick)) {
                             if (debugYoutubeMode) console.log("Matched a button we want to click: " + ytToastButtons[l].innerText);
-                            delayedTriggerClick(ytToastButtons[l]);
-                            lastActionTime = new Date().getTime();
+                            triggerClick(ytToastButtons[l]);
                             break mutationcheck;
                         } else {
                             if (debugYoutubeMode) console.log("Found a button that wasn't the one we wanted: " + ytToastButtons[l].innerText);
