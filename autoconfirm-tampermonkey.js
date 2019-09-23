@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.1
 // @description  Automatically trigger click events on Youtube's Activity Check Confirmation popups
-// @author       You
+// @author       taylorj999
 // @include      https://youtube.com/*
 // @include      https://*.youtube.com/*
 // @grant        none
