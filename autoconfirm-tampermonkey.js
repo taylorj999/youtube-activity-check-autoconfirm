@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Activity Check Autoclick
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      1.0
 // @description  Automatically trigger click events on Youtube's Activity Check Confirmation popups
 // @author       taylorj999
 // @include      https://youtube.com/*
@@ -38,13 +38,23 @@ function hasEnoughTimePassed() {
     return false;
 }
 
+// Convenience function for generating a timestamp - used for the debugging statements
+function twoDigits(n){
+    return n > 9 ? "" + n: "0" + n;
+}
+
+function generateSimpleTimestamp() {
+    let dateTime = new Date();
+    return dateTime.getHours() + ":" + twoDigits(dateTime.getMinutes()) + ":" + twoDigits(dateTime.getSeconds());
+}
+
 // Given a Node element in the DOM, uses the jQuery trigger event to fake a click on it
 // delayUntilClick should be set long enough for the popup dialog to be fully loaded
-const delayUntilClick = 250;
+const delayUntilClick = 100;
 
 function triggerClick(node) {
     try {
-        if (debugYoutubeMode) console.log("Executing a click action - Node name is: " + node.nodeName);
+        if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Executing a click action - Node name is: " + node.nodeName);
         let evt = jQuery.Event( "click" );
         jQuery(node).trigger(evt);
     } catch (e) {
@@ -92,7 +102,7 @@ function innerTextMatches(innerText,arrayOfButtonNames) {
 // The main mutation handler function that gets attached to the MutationObserver
 function handleMutation(mutations,observer) {
     if (!hasEnoughTimePassed()) {
-        if (debugYoutubeMode) console.log("Received mutations but not enough time has passed since the last click action");
+        if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Received mutations but not enough time has passed since the last click action");
         return;
     }
     // The MutationObserver can report multiple mutations for the same element in the same array, however once a click action is triggered there is
@@ -108,7 +118,7 @@ function handleMutation(mutations,observer) {
                 debugMutation.className = mutations[j].target.className;
                 debugMutation.attributeName = mutations[j].attributeName;
                 debugMutation.mutation = mutations[j];
-                console.log("Matched a potential dialog we want to interact with");
+                console.log(generateSimpleTimestamp() + " Matched a potential dialog we want to interact with");
                 console.log(debugMutation);
             }
             // this is the match criteria for the two-dialog popup window
@@ -117,17 +127,17 @@ function handleMutation(mutations,observer) {
                 && (mutations[j].attributeName === "aria-hidden")) {
                 let ytDialogButtons = mutations[j].target.querySelectorAll("YT-BUTTON-RENDERER");
                 if (debugYoutubeMode && ytDialogButtons.length>0) {
-                    console.log("Found buttons:");
+                    console.log(generateSimpleTimestamp() + " Found buttons:");
                     console.log(ytDialogButtons);
                 }
                 for (let k=0;k<ytDialogButtons.length;k++) {
                     if (innerTextMatches(ytDialogButtons[k].innerText,buttonsToClick)) {
-                        if (debugYoutubeMode) console.log("Matched a button we want to click: " + ytDialogButtons[k].innerText);
+                        if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Matched a button we want to click: " + ytDialogButtons[k].innerText);
                         delayedTriggerClick(ytDialogButtons[k]);
                         lastActionTime = new Date().getTime();
                         break mutationcheck;
                     } else {
-                        if (debugYoutubeMode) console.log("Found a button that wasn't the one we wanted: " + ytDialogButtons[k].innerText);
+                        if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Found a button that wasn't the one we wanted: " + ytDialogButtons[k].innerText);
                     }
                 }
             }
@@ -140,27 +150,27 @@ function handleMutation(mutations,observer) {
                 && (mutations[j].attributeName === "aria-hidden")) {
                 if (innerTextMatches(mutations[j].target.innerText,["Still watching? Video will pause soon"])) {
                     if (debugYoutubeMode) {
-                        console.log("Activity warning detected!");
+                        console.log(generateSimpleTimestamp() + " Activity warning detected!");
                         console.log(mutations[j]);
                     }
                     let ytToastButtons = mutations[j].target.querySelectorAll("YT-BUTTON-RENDERER");
                     if (debugYoutubeMode) {
-                        console.log("Found buttons:");
+                        console.log(generateSimpleTimestamp() + " Found buttons:");
                         console.log(ytToastButtons);
                     }
                     for (let l=0;l<ytToastButtons.length;l++) {
                         if (innerTextMatches(ytToastButtons[l].innerText,buttonsToClick)) {
-                            if (debugYoutubeMode) console.log("Matched a button we want to click: " + ytToastButtons[l].innerText);
+                            if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Matched a button we want to click: " + ytToastButtons[l].innerText);
                             triggerClick(ytToastButtons[l]);
                             break mutationcheck;
                         } else {
-                            if (debugYoutubeMode) console.log("Found a button that wasn't the one we wanted: " + ytToastButtons[l].innerText);
+                            if (debugYoutubeMode) console.log(generateSimpleTimestamp() + " Found a button that wasn't the one we wanted: " + ytToastButtons[l].innerText);
                         }
                     }
 
                 } else {
                     if (debugYoutubeMode) {
-                        console.log("Found a toast we weren't expecting");
+                        console.log(generateSimpleTimestamp() + " Found a toast we weren't expecting");
                         console.log(mutations[j]);
                     }
                 }
