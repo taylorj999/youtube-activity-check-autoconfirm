@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Activity Check Autoclick
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Automatically trigger click events on Youtube's Activity Check Confirmation popups
 // @author       taylorj999
 // @include      https://youtube.com/*
@@ -28,7 +28,7 @@ const buttonsToClick = ["YES","NO THANKS"];
 
 // Because of the constant mutations of the DOM, a delay is needed to avoid repeatedly hammering the click action
 const minimumTimeBetweenActions = 1000;
-var lastActionTime = new Date().getTime();
+var lastActionTime = new Date().getTime() - minimumTimeBetweenActions;
 
 function hasEnoughTimePassed() {
     let currTime = new Date().getTime();
@@ -99,6 +99,47 @@ function innerTextMatches(innerText,arrayOfButtonNames) {
     return hasMatchedText;
 }
 
+function dumpMutationInfo(mutation) {
+    let debugMutation = {};
+    debugMutation.innerText = mutation.target.innerText;
+    debugMutation.innerHTML = mutation.target.innerHTML;
+    debugMutation.tagName = mutation.target.tagName;
+    debugMutation.className = mutation.target.className;
+    debugMutation.attributeName = mutation.attributeName;
+    debugMutation.mutation = mutation;
+    console.log(generateSimpleTimestamp() +  " Mutation debug output");
+    console.log(debugMutation);
+}
+
+// This function deals with the new (as of 8/28/2020) "Get the best YouTube Experience" interruptor
+// It is broken out into a seperate function because we also need to call it on page load
+function autoclickBestYoutubeExperience(nodeToCheck) {
+    let subReasonNodes = nodeToCheck.querySelectorAll("div#reason");
+    let bestFound = false;
+    for (let y=0;y<subReasonNodes.length;y++) {
+        if (subReasonNodes[y].innerText === "Get the best YouTube experience") {
+            bestFound = true;
+        }
+    }
+    if (bestFound) {
+        if (debugYoutubeMode) {
+            console.log(generateSimpleTimestamp() + " Found a match on 'Get the best YouTube experience'");
+        }
+        let subYtNodes = nodeToCheck.querySelectorAll("paper-button");
+        if (debugYoutubeMode) {
+            console.log(subYtNodes);
+        }
+        for (let z=0;z<subYtNodes.length;z++) {
+            if (subYtNodes[z].ariaLabel === "Not Now") {
+                if (debugYoutubeMode) { console.log(generateSimpleTimestamp() + " Found a matching 'Not Now' button"); }
+                triggerClick(subYtNodes[z]);
+                return true;
+            }
+        }
+    }
+}
+
+
 // The main mutation handler function that gets attached to the MutationObserver
 function handleMutation(mutations,observer) {
     if (!hasEnoughTimePassed()) {
@@ -111,15 +152,7 @@ function handleMutation(mutations,observer) {
         if (matchesTagName(mutations[j].target.tagName,"PAPER-DIALOG") || matchesTagName(mutations[j].target.tagName,"PAPER-TOAST")) {
             // When youtube inevitably changes their dialogs up, debug output will make it infinitely easier to track down what was altered
             if (debugYoutubeMode) {
-                let debugMutation = {};
-                debugMutation.innerText = mutations[j].target.innerText;
-                debugMutation.innerHTML = mutations[j].target.innerHTML;
-                debugMutation.tagName = mutations[j].target.tagName;
-                debugMutation.className = mutations[j].target.className;
-                debugMutation.attributeName = mutations[j].attributeName;
-                debugMutation.mutation = mutations[j];
-                console.log(generateSimpleTimestamp() + " Matched a potential dialog we want to interact with");
-                console.log(debugMutation);
+                dumpMutationInfo(mutations[j]);
             }
             // this is the match criteria for the two-dialog popup window
             // even though often only "YES" shows, there are two dialog options
@@ -175,6 +208,19 @@ function handleMutation(mutations,observer) {
                     }
                 }
             }
+        // This matches the new "Get the best Youtube experience" interruption
+        } else if (matchesTagName(mutations[j].target.tagName,"div") && containsClassName(mutations[j].target.className,"yt-player-error-message-renderer")) {
+            if (debugYoutubeMode) {
+                console.log(generateSimpleTimestamp() + " Found a video interruption");
+                dumpMutationInfo(mutations[j]);
+            }
+            autoclickBestYoutubeExperience(mutations[j].target);
+        // For debug purposes, output any other mutations we didn't match on
+        } else {
+            if (debugYoutubeMode) {
+                console.log(generateSimpleTimestamp() + " In the final debug block");
+                dumpMutationInfo(mutations[j]);
+            }
         }
     }
 }
@@ -188,4 +234,22 @@ observer.observe(document, {
     attributeFilter: attributesToWatch
 });
 
-
+let delayBetweenChecks = 1000;
+var currentYoutubeUrl = null;
+// Check for the "Get the best YouTube experience" interruption on startup
+// Delayed x ms to allow the interrupt to be rendered in the first place
+setInterval(function() {
+    if (location.href != currentYoutubeUrl) {
+        if (debugYoutubeMode) { console.log(generateSimpleTimestamp() + " URL changed"); }
+        let bestYoutubeExperience = document.querySelectorAll("div.yt-player-error-message-renderer");
+        if (debugYoutubeMode) {
+            console.log(generateSimpleTimestamp() + " Found a potential interrupt dialog");
+        }
+        for (let x=0;x<bestYoutubeExperience.length;x++) {
+            if (autoclickBestYoutubeExperience(bestYoutubeExperience[x])) {
+                currentYoutubeUrl = location.href; // don't stop checking after a page url change until we find the dialog box
+                break;
+            }
+        }
+    }
+},delayBetweenChecks);
