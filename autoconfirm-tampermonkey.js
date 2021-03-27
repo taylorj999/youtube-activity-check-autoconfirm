@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Activity Check Autoclick
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Automatically trigger click events on Youtube's Activity Check Confirmation popups
 // @author       taylorj999
 // @include      https://youtube.com/*
@@ -25,6 +25,10 @@ const attributesToWatch = ["aria-hidden"];
 // * "Upgrade to Premium to watch interrupted" "NO THANKS"
 // Button text in other languages can be added to the array here
 const buttonsToClick = ["YES","NO THANKS"];
+
+// Youtube began changing the names of their 'paper dialogs' for some reason
+const paperDialogTagname = "TP-YT-PAPER-DIALOG"; // was originally just "PAPER-DIALOG"
+const paperToastTagname = "TP-YT-PAPER-TOAST"; // was originally just "PAPER-TOAST"
 
 // Because of the constant mutations of the DOM, a delay is needed to avoid repeatedly hammering the click action
 const minimumTimeBetweenActions = 1000;
@@ -149,14 +153,14 @@ function handleMutation(mutations,observer) {
     // The MutationObserver can report multiple mutations for the same element in the same array, however once a click action is triggered there is
     // no need to continue processing the current set of mutations
     mutationcheck: for (let j=0;j<mutations.length;j++) {
-        if (matchesTagName(mutations[j].target.tagName,"PAPER-DIALOG") || matchesTagName(mutations[j].target.tagName,"PAPER-TOAST")) {
+        if (matchesTagName(mutations[j].target.tagName,paperDialogTagname) || matchesTagName(mutations[j].target.tagName,paperToastTagname)) {
             // When youtube inevitably changes their dialogs up, debug output will make it infinitely easier to track down what was altered
             if (debugYoutubeMode) {
                 dumpMutationInfo(mutations[j]);
             }
             // this is the match criteria for the two-dialog popup window
             // even though often only "YES" shows, there are two dialog options
-            if (matchesTagName(mutations[j].target.tagName,"PAPER-DIALOG") && containsClassName(mutations[j].target.className,"ytd-popup-container")
+            if (matchesTagName(mutations[j].target.tagName,paperDialogTagname) && containsClassName(mutations[j].target.className,"ytd-popup-container")
                 && (mutations[j].attributeName === "aria-hidden")) {
                 let ytDialogButtons = mutations[j].target.querySelectorAll("YT-BUTTON-RENDERER");
                 if (debugYoutubeMode && ytDialogButtons.length>0) {
@@ -179,7 +183,7 @@ function handleMutation(mutations,observer) {
             // or to reset the activity lockout; so for this one the click is triggered immediately and in case we did not fire
             // it fast enough we do not reset the lockout timer so that the mutation handler can also fire for the main dialog
             // becoming visible
-            if (matchesTagName(mutations[j].target.tagName,"PAPER-TOAST") && containsClassName(mutations[j].target.className,"yt-notification-action-renderer")
+            if (matchesTagName(mutations[j].target.tagName,paperToastTagname) && containsClassName(mutations[j].target.className,"yt-notification-action-renderer")
                 && (mutations[j].attributeName === "aria-hidden")) {
                 if (innerTextMatches(mutations[j].target.innerText,["Still watching? Video will pause soon"])) {
                     if (debugYoutubeMode) {
